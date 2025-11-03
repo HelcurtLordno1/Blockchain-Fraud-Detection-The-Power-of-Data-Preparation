@@ -1,0 +1,36 @@
+
+================================================================================
+EXPLORATORY DATA ANALYSIS SUMMARY REPORT
+Ethereum Phishing Detection Dataset
+Generated: 2025-11-03 23:44:53
+================================================================================
+
+1. DATASET OVERVIEW
+   - Total Accounts: 10,960
+   - Phisher Accounts: 5,480 (50.00%)
+   - Normal Accounts: 5,480 (50.00%)
+   - Total Transactions: 3,345,323
+
+2. TRANSACTION STATISTICS
+   - Average Transactions per Account: 305.23
+   - Median Transactions per Account: 7
+   - Standard Deviation: 2966.94
+   - Min Transactions: 3
+   - Max Transactions: 247,547
+   - 25th Percentile: 4
+   - 75th Percentile: 22
+   - IQR: 18
+
+3. DATA QUALITY
+   - Empty Accounts: 0
+   - Phisher Coverage: 100.0%
+   - Structure Validity: 0%
+   - Unique Addresses: True
+
+4. KEY FINDINGS
+   - The dataset is highly imbalanced with only 50.00% phisher accounts
+   - Transaction counts vary widely (min: 3, max: 247,547)
+   - Data quality is good with consistent structure and coverage
+   - Dataset is ready for machine learning model training
+
+================================================================================

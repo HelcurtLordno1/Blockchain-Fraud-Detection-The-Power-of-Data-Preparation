@@ -1,0 +1,7 @@
+KEY INSIGHTS FROM COMPARATIVE ANALYSIS
+================================================================================
+1. Phisher accounts have 1649.8% more transactions on average
+2. Phisher accounts have 0.2% higher average transaction amounts
+3. Phisher accounts have 25337.9% higher IN/OUT ratios
+4. Phisher accounts are 235.3% more active (tx/day)
+5. Phisher accounts interact with 1618.4% more unique addresses

@@ -1,0 +1,11 @@
+Metric,Phisher Mean,Normal Mean,Phisher Median,Normal Median,Difference (%)
+Total Transactions,577.46,33.00,16.00,5.00,1649.8%
+In Transactions,437.04,4.32,6.00,0.00,10016.4%
+Out Transactions,140.42,28.68,7.00,4.00,389.6%
+In Out Ratio,105.69,0.42,0.64,0.00,25337.9%
+Avg Amount,4.82,4.81,0.31,0.00,0.2%
+Median Amount,1.84,3.39,0.04,0.00,-45.9%
+Total Amount,3549.91,108.08,5.00,0.01,3184.5%
+Time Span Days,131.86,94.62,75.99,56.82,39.4%
+Tx Per Day,120.48,35.93,0.42,0.13,235.3%
+Unique Counterparties,218.08,12.69,11.00,3.00,1618.4%
