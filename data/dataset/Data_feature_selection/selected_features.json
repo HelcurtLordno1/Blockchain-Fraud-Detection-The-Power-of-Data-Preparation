@@ -1,0 +1,34 @@
+{
+  "selected_features": [
+    "std_hour_received",
+    "node_indegree",
+    "wd_tx_ratio_received",
+    "active_days",
+    "account_lifetime",
+    "mean_hour_received",
+    "long_term_incoming_freq",
+    "max_time_between_tx",
+    "node_outdegree",
+    "std_hour_sent",
+    "long_term_transfer_freq",
+    "avg_time_between_tx",
+    "short_term_incoming_freq",
+    "direction_ratio",
+    "long_term_outgoing_freq",
+    "short_term_transfer_freq",
+    "wd_tx_ratio_sent"
+  ],
+  "threshold": 0.05,
+  "method": "Spearman",
+  "data_split": "train_only",
+  "train_size": 660656,
+  "test_size": 165164,
+  "n_original": 34,
+  "n_selected": 17,
+  "reduction_rate": 50.0,
+  "feature_categories": {
+    "frequency": 5,
+    "statistical": 12,
+    "centrality": 0
+  }
+}
