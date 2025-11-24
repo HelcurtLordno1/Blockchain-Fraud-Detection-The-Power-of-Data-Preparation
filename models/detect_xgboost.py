@@ -17,9 +17,9 @@ def parse_args():
     parser.add_argument("--dataset", type=str, default="MulDiGraph", choices=["B4E", "MulDiGraph", "TXNT"],
                         help="Dataset to use (default: B4E)")
     parser.add_argument("--embedding_file", type=str, default=None,
-                        help="Path to embedding file (default: ./dataset/<dataset>/graph_emb.txt)")
+                        help="Path to embedding file (default: ../data/dataset/Data_after_FE/graph_emb.txt)")
     parser.add_argument("--tag_file", type=str, default=None,
-                        help="Path to tag file (default: ./dataset/<dataset>/account_tags.pkl)")
+                        help="Path to tag file (default: ../data/processed_data/account_tags.pkl)")
     parser.add_argument("--feature_select", type=str, default="Selected Features",
                         help="Feature selection method (default: Selected Features)")
     parser.add_argument("--ratio", type=str, default="5:5",
@@ -44,9 +44,9 @@ def parse_args():
 
     # Set default file paths based on dataset if not provided
     if args.embedding_file is None:
-        args.embedding_file = f"./dataset/{args.dataset}/graph_emb.txt"
+        args.embedding_file = f"../data/dataset/Data_after_FE/graph_emb.txt"
     if args.tag_file is None:
-        args.tag_file = f"./dataset/{args.dataset}/account_tags.pkl"
+        args.tag_file = f"../data/processed_data/account_tags.pkl"
 
     return args
 

@@ -73,3 +73,6 @@ data/dataset/Data_after_FE/features.csv filter=lfs diff=lfs merge=lfs -text
 data/dataset/MulDiGraph/output_transactions.txt filter=lfs diff=lfs merge=lfs -text
 data/processed_data/eoa2seq.pkl filter=lfs diff=lfs merge=lfs -text
 data/raw_data/MulDiGraph.pkl filter=lfs diff=lfs merge=lfs -text
+*.csv filter=lfs diff=lfs merge=lfs -text
+*.txt filter=lfs diff=lfs merge=lfs -text
+data/dataset/Data_after_FE/graph_emb.txt filter=lfs diff=lfs merge=lfs -text

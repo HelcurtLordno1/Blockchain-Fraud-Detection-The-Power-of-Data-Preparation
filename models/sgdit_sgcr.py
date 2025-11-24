@@ -22,9 +22,9 @@ def parse_args():
     parser.add_argument("--dataset", type=str, default="MulDiGraph", choices=["B4E", "MulDiGraph", "TXNT"],
                         help="Dataset to use (default: MulDiGraph)")
     parser.add_argument("--input", type=str, default=None,
-                        help="Input graph path (default: ./dataset/<dataset>/output_transactions.txt)")
+                        help="Input graph path (default: ../data/dataset/MulDiGraph/output_transactions.txt)")
     parser.add_argument("--output", type=str, default=None,
-                        help="Output embedding path (default: ./dataset/<dataset>/graph_emb.txt)")
+                        help="Output embedding path (default: ../data/dataset/Data_after_FE/graph_emb.txt)")
     parser.add_argument("--depth", type=int, default=10, help="Number of iterations")
     parser.add_argument("--alpha", type=float, default=1.0, help="Temporal decay factor")
     parser.add_argument("--clusters", type=int, default=10, help="Number of clusters")
@@ -36,9 +36,9 @@ def parse_args():
     args = parser.parse_args()
 
     if args.input is None:
-        args.input = f"./dataset/{args.dataset}/output_transactions.txt"
+        args.input = f"../data/dataset/MulDiGraph/output_transactions.txt"
     if args.output is None:
-        args.output = f"./dataset/{args.dataset}/graph_emb.txt"
+        args.output = f"../data/dataset/Data_after_FE/graph_emb.txt"
 
     return args
 
