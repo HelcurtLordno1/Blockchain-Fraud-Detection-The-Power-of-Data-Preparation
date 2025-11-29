@@ -195,12 +195,12 @@ Data-Prep-Project-main/
 │   └── save_image_story/                         # Generated visualizations
 │
 ├── 📂 streamlit_UI/
-│   ├── app.py                             # Main Streamlit dashboard (2,672 lines) ✨ Updated
-│   ├── model_utils.py                     # Model utilities (242 lines) 🆕 NEW
-│   ├── data_utils.py                      # Data utilities (326 lines) 🆕 NEW
-│   ├── ui_components.py                   # UI components (420 lines) 🆕 NEW
+│   ├── app.py                             # Main Streamlit dashboard (2,672 lines) 
+│   ├── model_utils.py                     # Model utilities (242 lines) 
+│   ├── data_utils.py                      # Data utilities (326 lines) 
+│   ├── ui_components.py                   # UI components (420 lines) 
 │   ├── requirements.txt                   # Python dependencies
-│   └── README_UI_streamlit.md             # Dashboard user guide ✨ Updated
+│   └── README_UI_streamlit.md             # Dashboard user guide 
 │
 └── 📄 README.md                           # This file
 ```
