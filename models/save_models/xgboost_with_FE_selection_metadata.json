@@ -1,0 +1,28 @@
+{
+  "model_filename": "xgboost_with_FE_selection.joblib",
+  "selected_features": [
+    "std_hour_received",
+    "node_indegree",
+    "wd_tx_ratio_received",
+    "active_days",
+    "account_lifetime",
+    "mean_hour_received",
+    "long_term_incoming_freq",
+    "max_time_between_tx",
+    "node_outdegree",
+    "std_hour_sent",
+    "long_term_transfer_freq",
+    "avg_time_between_tx",
+    "short_term_incoming_freq",
+    "direction_ratio",
+    "long_term_outgoing_freq",
+    "short_term_transfer_freq",
+    "wd_tx_ratio_sent"
+  ],
+  "n_features": 17,
+  "selection_method": "Spearman",
+  "selection_threshold": 0.05,
+  "model_type": "XGBoost",
+  "trained_on": "with_FE_selection",
+  "note": "Must use same feature selection as training"
+}

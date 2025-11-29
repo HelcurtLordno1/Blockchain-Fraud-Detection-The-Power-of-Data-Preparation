@@ -1,50 +1,174 @@
+"""
+Directed Statistical Features Loader
+
+This module calculates 21 statistical features for Ethereum transaction graphs:
+- Node degree features (in/out degree, direction ratio)
+- Amount-based features (min/max/avg incoming/outgoing amounts, balance)
+- Temporal features (account lifetime, active days, transaction timing patterns)
+- Weekend transaction ratios
+
+These statistical features capture behavioral patterns that distinguish
+normal accounts from phishing/fraudulent accounts.
+
+Author: Fraud Detection Research Team
+"""
+
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+from typing import Dict, Tuple, Set, Any
+from datetime import datetime
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 class directed_loader:
+    """
+    Load and process directed transaction graphs for statistical feature extraction.
+    
+    This class builds a temporal graph from Ethereum transactions and calculates
+    21 statistical features that measure transaction patterns, amounts, and timing.
+    
+    Attributes:
+        countID (int): Counter for assigning unique node IDs
+        G (Dict): Graph structure storing temporal edges
+        co (Dict): Maps original addresses to integer node IDs
+        revco (Dict): Reverse mapping from node IDs to addresses
+        money (Dict): Stores incoming/outgoing transaction amounts per node
+    
+    Example:
+        >>> loader = directed_loader()
+        >>> loader.read(transaction_df)
+        >>> features = loader.cal_stat_feats()
+        >>> print(f"Extracted {len(list(features[0].keys()))} features per node")
+    """
 
-    def __init__(self):
-        self.countID = 0
-        self.G = {}
-        self.co = {}
-        self.revco = {}
-        self.money = {}
+    def __init__(self) -> None:
+        """
+        Initialize the directed graph loader.
+        
+        Sets up empty data structures for node mapping, graph storage,
+        and transaction amount tracking.
+        """
+        self.countID: int = 0
+        self.G: Dict[int, Dict] = {}
+        self.co: Dict[str, int] = {}
+        self.revco: Dict[int, str] = {}
+        self.money: Dict[int, Dict[str, list]] = {}
 
-    def nodeID(self, x):
+    def nodeID(self, x: str) -> int:
+        """
+        Get or create a unique integer ID for an Ethereum address.
+        
+        Args:
+            x: Ethereum address string
+            
+        Returns:
+            Unique integer ID for the address
+            
+        Example:
+            >>> loader = directed_loader()
+            >>> id1 = loader.nodeID("0xabc123...")
+            >>> id2 = loader.nodeID("0xabc123...")  # Same ID returned
+            >>> assert id1 == id2
+        """
         if x not in self.co:
             self.co[x] = self.countID
             self.revco[self.co[x]] = x
             self.countID += 1
         return self.co[x]
 
-    def read(self, file):
+    def read(self, file: pd.DataFrame) -> None:
+        """
+        Read transaction data and build the directed graph.
+        
+        Expects DataFrame with columns: [from_address, to_address, timestamp, amount]
+        
+        Args:
+            file: Pandas DataFrame containing transaction records
+            
+        Example:
+            >>> df = pd.DataFrame({
+            ...     'from': ['0xabc...', '0xdef...'],
+            ...     'to': ['0xdef...', '0xghi...'],
+            ...     'timestamp': [1609459200, 1609545600],
+            ...     'value': [1.5, 2.3]
+            ... })
+            >>> loader.read(df)
+            >>> logger.info(f"Loaded {len(loader.G)} nodes")
+        """
+        if file.empty:
+            logger.warning("Empty DataFrame provided to read()")
+            return
+            
         x = file.values
+        logger.info(f"Processing {x.shape[0]} transactions with amounts...")
+        
         for a in range(x.shape[0]):
             i = self.nodeID(x[a, 0])
             j = self.nodeID(x[a, 1])
             self.addEdge((i, j, float(x[a, 2]), float(x[a, 3])))
+        
         self.fixG()
+        logger.info(f"Graph built with {self.countID} unique nodes")
 
-    def storeEmb(self, file, data):
-        file1 = open(file, 'w')
-        for a in range(data.shape[0]):
-            s = str(int(self.revco[a]))
-            for b in range(data.shape[1]):
-                s += ' ' + str(data[a, b])
-            file1.write(s + "\n")
-        file1.close()
+    def storeEmb(self, file: str, data: np.ndarray) -> None:
+        """
+        Store node embeddings/features to file.
+        
+        Format: Each line contains node_address followed by feature values
+        
+        Args:
+            file: Output file path
+            data: NumPy array of shape (n_nodes, n_features)
+            
+        Example:
+            >>> features = loader.cal_stat_feats()
+            >>> feature_array = np.array([list(f.values()) for f in features.values()])
+            >>> loader.storeEmb("output_statistical_features.txt", feature_array)
+        """
+        try:
+            with open(file, 'w') as file1:
+                for a in range(data.shape[0]):
+                    s = str(int(self.revco[a]))
+                    for b in range(data.shape[1]):
+                        s += ' ' + str(data[a, b])
+                    file1.write(s + "\n")
+            logger.info(f"Stored {data.shape[0]} embeddings with {data.shape[1]} features to {file}")
+        except Exception as e:
+            logger.error(f"Error storing embeddings: {e}")
 
-    def fixG(self):
+    def fixG(self) -> None:
+        """
+        Finalize graph structure by sorting timestamps and converting to arrays.
+        
+        Converts edge sets to sorted arrays for efficient temporal queries.
+        Should be called after all edges are added.
+        """
+        logger.info("Finalizing graph structure...")
         for g in range(len(self.G)):
             orderSet = [t for t in self.G[g]]
-            orderSet.sort(reverse=True)
+            orderSet.sort(reverse=True)  # Most recent first
             self.G[g] = [(t, np.array([x for x in self.G[g][t]['in']]),
                           np.array([y for y in self.G[g][t]['out']])) for t in orderSet]
 
 
-    def addEdge(self, s):
+    def addEdge(self, s: Tuple[int, int, float, float]) -> None:
+        """
+        Add a directed edge (transaction) with amount to the graph.
+        
+        Args:
+            s: Tuple of (from_node_id, to_node_id, timestamp, amount)
+            
+        Example:
+            >>> loader.addEdge((1, 2, 1609459200.0, 1.5))  # Node 1 sends 1.5 ETH to Node 2
+        """
         (l1, l2, t, amount) = s
+        
+        # Initialize graph structures
         if l1 not in self.G:
             self.G[l1] = {}
         if l2 not in self.G:
@@ -53,18 +177,48 @@ class directed_loader:
             self.G[l1][t] = {'out': set(), 'in': set()}
         if t not in self.G[l2]:
             self.G[l2][t] = {'out': set(), 'in': set()}
+        
+        # Add edges
         self.G[l1][t]['out'].add(l2)
         self.G[l2][t]['in'].add(l1)
 
-        self.money[l1] = {"incoming_amount": [] , "outgoing_amount": []}
-        self.money[l2] = {"incoming_amount": [] , "outgoing_amount": []}
+        # Initialize money tracking
+        if l1 not in self.money:
+            self.money[l1] = {"incoming_amount": [], "outgoing_amount": []}
+        if l2 not in self.money:
+            self.money[l2] = {"incoming_amount": [], "outgoing_amount": []}
+        
+        # Track amounts
         self.money[l1]["outgoing_amount"].append(amount)
         self.money[l2]["incoming_amount"].append(amount)
 
 
-    def cal_stat_feats(self):
-        """Calculate statistical features for each node in the graph."""
-        node_features = {}
+    def cal_stat_feats(self) -> Dict[int, Dict[str, float]]:
+        """
+        Calculate 21 statistical features for each node in the graph.
+        
+        Features calculated:
+        1. node_outdegree: Number of unique outgoing transactions
+        2. node_indegree: Number of unique incoming transactions
+        3. direction_ratio: Ratio of incoming to outgoing (fraud indicator)
+        4-9. Amount statistics (min/max/avg for incoming/outgoing, balance)
+        10-11. Temporal features (account_lifetime, active_days)
+        12-15. Hour patterns (mean/std hour sent/received)
+        16-18. Time between transactions (avg/min/max)
+        19-21. Weekend transaction ratios (sent/received)
+        
+        Returns:
+            Dictionary mapping node_id -> {feature_name: feature_value}
+            
+        Example:
+            >>> loader = directed_loader()
+            >>> loader.read(df)
+            >>> features = loader.cal_stat_feats()
+            >>> node_0_features = features[0]
+            >>> print(f"Node 0 indegree: {node_0_features['node_indegree']}")
+        """
+        logger.info(f"Calculating statistical features for {self.countID} nodes...")
+        node_features: Dict[int, Dict[str, float]] = {}
         eps = 1e-6  # Small constant to avoid division by zero
         
         for node_id in range(self.countID):
