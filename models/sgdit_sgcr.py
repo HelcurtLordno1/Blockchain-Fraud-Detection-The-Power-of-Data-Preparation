@@ -1,3 +1,15 @@
+"""
+nSGDiT-SGCR: Directed Temporal Graph Embedding with Laplacian Optimization
+
+This module implements a sophisticated graph embedding algorithm that combines:
+1. Temporal aggregation of directed graph structures
+2. Differentiable K-means clustering
+3. Laplacian regularization for smooth embeddings
+4. Integration of frequency, statistical, and centrality features
+
+The algorithm is designed for phishing detection in transaction networks.
+"""
+
 import argparse
 import pandas as pd
 import numpy as np
@@ -17,19 +29,42 @@ import time
 
 
 def parse_args():
+    """
+    Parse command-line arguments for the SGDiT-SGCR algorithm.
+    
+    Returns:
+        argparse.Namespace: Parsed arguments containing:
+            - dataset: Name of the dataset to process
+            - input: Path to input transaction graph
+            - output: Path to save generated embeddings
+            - depth: Number of iterations for the algorithm
+            - alpha: Temporal decay factor (controls time importance)
+            - clusters: Number of clusters for K-means
+            - stop: Whether to use early stopping
+            - beta: Inverse temperature for soft K-means assignments
+            - kmeans_iter: Maximum iterations for K-means
+            - lambda_weight: Weight for cluster Laplacian regularization
+            - mu_weight: Weight for identity matrix regularization
+    """
     parser = argparse.ArgumentParser(
         description='Directed Temporal SIRGN with Laplacian Optimization')
+    
+    # Dataset configuration
     parser.add_argument("--dataset", type=str, default="MulDiGraph", choices=["B4E", "MulDiGraph", "TXNT"],
                         help="Dataset to use (default: MulDiGraph)")
     parser.add_argument("--input", type=str, default=None,
                         help="Input graph path (default: ../data/dataset/MulDiGraph/output_transactions.txt)")
     parser.add_argument("--output", type=str, default=None,
                         help="Output embedding path (default: ../data/dataset/Data_after_FE/graph_emb.txt)")
+    
+    # Algorithm parameters
     parser.add_argument("--depth", type=int, default=10, help="Number of iterations")
     parser.add_argument("--alpha", type=float, default=1.0, help="Temporal decay factor")
     parser.add_argument("--clusters", type=int, default=10, help="Number of clusters")
     parser.add_argument("--stop", default=True, action="store_true", help="Stop at convergence")
-    parser.add_argument("--beta", type=float, default=10.0, help="Inverse temperature for K-means")
+    
+    # K-means parameters
+    parser.add_argument("--beta", type=float, default=10.0, help="Inverse temperature for K-means (higher = harder assignments)")
     parser.add_argument("--kmeans_iter", type=int, default=10, help="K-means iterations")
     parser.add_argument("--lambda_weight", type=float, default=1.0, help="Laplacian regularization weight")
     parser.add_argument("--mu_weight", type=float, default=1.0, help="Identity regularization weight")
@@ -43,36 +78,120 @@ def parse_args():
     return args
 
 class DifferentiableKMeans:
+    """
+    Differentiable K-means clustering using soft assignments and cosine similarity.
+    
+    This implementation uses:
+    - K-means++ initialization for better starting centroids
+    - Cosine similarity instead of Euclidean distance
+    - Softmax-based soft assignments (differentiable)
+    - Beta parameter controls assignment hardness
+    
+    Attributes:
+        n_clusters (int): Number of clusters
+        beta (float): Inverse temperature for softmax (higher = harder assignments)
+        max_iter (int): Maximum iterations for convergence
+    """
+    
     def __init__(self, n_clusters, beta, max_iter=10):
+        """
+        Initialize DifferentiableKMeans.
+        
+        Args:
+            n_clusters (int): Number of clusters to form
+            beta (float): Inverse temperature for soft assignments
+            max_iter (int): Maximum number of iterations
+        """
         self.n_clusters = n_clusters
         self.beta = beta
         self.max_iter = max_iter
 
     def initialize_centroids(self, embeddings):
+        """
+        Initialize centroids using K-means++ algorithm.
+        
+        K-means++ selects initial centroids that are far apart from each other,
+        which leads to better and faster convergence compared to random initialization.
+        
+        Args:
+            embeddings (torch.Tensor): Input embeddings of shape (n_samples, n_features)
+        
+        Returns:
+            torch.Tensor: Initial centroids of shape (n_clusters, n_features)
+        """
         n_samples = embeddings.shape[0]
+        # Randomly select first centroid
         centroids = [embeddings[np.random.randint(n_samples)]]
+        
+        # Select remaining centroids based on distance from existing ones
         for _ in range(self.n_clusters - 1):
+            # Compute minimum distance to existing centroids
             distances = torch.cdist(embeddings, torch.stack(centroids), p=2).min(dim=1)[0]
+            # Sample next centroid with probability proportional to distance
             probs = distances / distances.sum()
             next_centroid_idx = np.random.choice(n_samples, p=probs.numpy())
             centroids.append(embeddings[next_centroid_idx])
+        
         return torch.stack(centroids)
 
     def fit(self, embeddings):
+        """
+        Fit K-means model to embeddings and return soft assignments.
+        
+        The algorithm:
+        1. Normalize embeddings to unit vectors
+        2. Initialize centroids using K-means++
+        3. Iteratively update centroids based on soft assignments
+        4. Use cosine similarity instead of Euclidean distance
+        
+        Args:
+            embeddings (torch.Tensor): Input embeddings of shape (n_samples, n_features)
+        
+        Returns:
+            tuple: (assignments, centroids)
+                - assignments (torch.Tensor): Soft assignment probabilities (n_samples, n_clusters)
+                - centroids (torch.Tensor): Final cluster centroids (n_clusters, n_features)
+        """
+        # Normalize embeddings to unit vectors for cosine similarity
         embeddings = F.normalize(embeddings, p=2, dim=1)
         centroids = self.initialize_centroids(embeddings)
+        
+        # Iterative refinement of centroids
         for _ in range(self.max_iter):
+            # Compute cosine similarity between embeddings and centroids
             cos_sim = F.cosine_similarity(embeddings.unsqueeze(1), centroids.unsqueeze(0), dim=2)
+            # Soft assignments using softmax (differentiable)
             assignments = torch.softmax(self.beta * cos_sim, dim=1)
+            # Update centroids as weighted average of embeddings
             new_centroids = torch.matmul(assignments.t(), embeddings)
             new_centroids = new_centroids / (assignments.sum(dim=0, keepdim=True).t() + 1e-10)
             centroids = F.normalize(new_centroids, p=2, dim=1)
+        
+        # Final assignments
         cos_sim = F.cosine_similarity(embeddings.unsqueeze(1), centroids.unsqueeze(0), dim=2)
         assignments = torch.softmax(self.beta * cos_sim, dim=1)
         return assignments, centroids
 
 def construct_adjacency_matrix(G, nv, alpha):
-    """Construct graph Laplacian matrix with temporal decay."""
+    """
+    Construct graph Laplacian matrix with temporal decay weights.
+    
+    This function builds both adjacency matrix A and Laplacian L = D - A,
+    where edges are weighted by temporal decay exp(-t/alpha).
+    
+    Args:
+        G (list): Graph structure where G[v] = [(t, lii, lio), ...]
+            - t: timestamp
+            - lii: incoming neighbors
+            - lio: outgoing neighbors
+        nv (int): Number of vertices
+        alpha (float): Temporal decay factor (higher = slower decay)
+    
+    Returns:
+        tuple: (L, A)
+            - L (scipy.sparse.csr_matrix): Laplacian matrix (nv x nv)
+            - A (scipy.sparse.csr_matrix): Adjacency matrix (nv x nv)
+    """
     row, col, data = [], [], []
     for v in range(nv):
         for (t, lii, lio) in G[v]:
@@ -95,7 +214,21 @@ def construct_adjacency_matrix(G, nv, alpha):
     return L, A
 
 def construct_directed_adjacency_matrix(G, nv, alpha):
-    """Construct directed adjacency matrix preserving edge directions."""
+    """
+    Construct directed adjacency matrix preserving edge directions.
+    
+    Unlike construct_adjacency_matrix, this version maintains directedness:
+    - Incoming edges: A[u][v] = weight (u -> v)
+    - Outgoing edges: A[v][u] = weight (v -> u)
+    
+    Args:
+        G (list): Graph structure where G[v] = [(t, lii, lio), ...]
+        nv (int): Number of vertices
+        alpha (float): Temporal decay factor
+    
+    Returns:
+        scipy.sparse.csr_matrix: Directed adjacency matrix (nv x nv)
+    """
     row, col, data = [], [], []
     
     for v in range(nv):
@@ -120,7 +253,25 @@ def construct_directed_adjacency_matrix(G, nv, alpha):
     return A_directed
 
 def compute_centrality_features(G, nv, alpha):
-    """Compute centrality features efficiently."""
+    """
+    Compute various graph centrality features for each node.
+    
+    Centrality measures capture different aspects of node importance:
+    - Katz: Influence through all paths (with decay)
+    - Degree: Number of direct connections
+    - Closeness: Average distance to other nodes
+    - Clustering: Density of neighbors' connections
+    - Eigenvector: Importance based on neighbors' importance
+    - In/Out-degree: Directional connectivity
+    
+    Args:
+        G (list): Graph structure
+        nv (int): Number of vertices
+        alpha (float): Temporal decay factor
+    
+    Returns:
+        dict: Dictionary of centrality measures, each containing {node_id: value}
+    """
     A_directed = construct_directed_adjacency_matrix(G, nv, alpha)
     A_nx_directed = nx.from_scipy_sparse_array(A_directed, parallel_edges=False, 
                                                edge_attribute="weight", create_using=nx.DiGraph)
@@ -163,7 +314,24 @@ def compute_centrality_features(G, nv, alpha):
     return features
 
 def construct_cluster_laplacian(A, assignments, n_clusters, nv):
-    """Construct cluster-specific Laplacian matrices."""
+    """
+    Construct cluster-specific Laplacian matrices for regularization.
+    
+    For each cluster c, creates a Laplacian L_c that encourages smoothness
+    within that cluster. This helps nodes in the same cluster have similar embeddings.
+    
+    The cluster Laplacian is: L_c = D_c - A_c
+    where A_c = M_c * A * M_c (M_c is diagonal membership matrix)
+    
+    Args:
+        A (scipy.sparse.csr_matrix): Global adjacency matrix
+        assignments (numpy.ndarray): Soft cluster assignments (nv x n_clusters)
+        n_clusters (int): Number of clusters
+        nv (int): Number of vertices
+    
+    Returns:
+        list: List of cluster-specific Laplacian matrices
+    """
     cluster_laplacians = []
     for c in range(n_clusters):
         membership = assignments[:, c].reshape(-1, 1)
@@ -176,7 +344,31 @@ def construct_cluster_laplacian(A, assignments, n_clusters, nv):
     return cluster_laplacians
 
 def laplacian_optimization(embeddings, G, assignments, centroids, alpha, lambda_weight, mu_weight):
-    """Optimize embeddings using Laplacian regularization with sparse matrices."""
+    """
+    Optimize embeddings using Laplacian regularization with sparse matrices.
+    
+    This function solves the optimization problem:
+    minimize: ||Z^T * L * Z||^2 + lambda * ||Z^T * L_c * Z||^2 + mu * ||Z - embeddings||^2
+    
+    Where:
+    - L: Global graph Laplacian (smoothness)
+    - L_c: Cluster-specific Laplacians (within-cluster smoothness)
+    - mu: Identity term (preserve original embeddings)
+    
+    The solution uses Conjugate Gradient method for efficiency.
+    
+    Args:
+        embeddings (numpy.ndarray): Current embeddings (nv x d)
+        G (list): Graph structure
+        assignments (numpy.ndarray): Cluster assignments (nv x n_clusters)
+        centroids (numpy.ndarray): Cluster centroids
+        alpha (float): Temporal decay factor
+        lambda_weight (float): Weight for cluster Laplacian regularization
+        mu_weight (float): Weight for identity regularization
+    
+    Returns:
+        numpy.ndarray: Optimized embeddings (nv x d), normalized to [0, 1]
+    """
     nv, d = embeddings.shape
     n_clusters = assignments.shape[1]
     L, A = construct_adjacency_matrix(G, nv, alpha)
@@ -193,7 +385,33 @@ def laplacian_optimization(embeddings, G, assignments, centroids, alpha, lambda_
     return Z
 
 def dirtemporalAggregation1(embd, G, v, alpha, freq_features=None, stat_features=None, graph_features=None):
-    """Aggregate temporal neighbor embeddings for a single node with all feature combinations."""
+    """
+    Aggregate temporal neighbor embeddings for a single node with feature engineering.
+    
+    This function performs sophisticated temporal aggregation:
+    1. Aggregates incoming and outgoing neighbor embeddings separately
+    2. Applies temporal decay weighting: exp((t_i - t_{i-1})/alpha)
+    3. Combines temporal features with handcrafted features
+    
+    The resulting feature vector contains:
+    - Temporal aggregation matrix (flattened h)
+    - Direct neighbor aggregation (h1)
+    - Statistical features (selected based on Spearman correlation)
+    - Frequency features (transaction patterns)
+    - Centrality features (graph topology)
+    
+    Args:
+        embd (numpy.ndarray): Current node embeddings
+        G (list): Graph structure
+        v (int): Node index to aggregate
+        alpha (float): Temporal decay factor
+        freq_features (dict): Frequency-based features per node
+        stat_features (dict): Statistical features per node
+        graph_features (dict): Centrality features per node
+    
+    Returns:
+        numpy.ndarray: Aggregated feature vector (1 x total_features)
+    """
     k = embd.shape[1]
     h = np.zeros((k * 2, k * 2))
     h1 = np.zeros((1, k * 2))
@@ -228,10 +446,14 @@ def dirtemporalAggregation1(embd, G, v, alpha, freq_features=None, stat_features
     
     g = h.flatten()
     
-    # Base temporal features - this is where you wanted to concat
+    # Base temporal features combining:
+    # - g: Flattened temporal aggregation matrix capturing time-weighted interactions
+    # - h1: Direct neighbor aggregation vector
     temporal_features = np.hstack([g.reshape((1, g.shape[0])), h1])
     
     # Collect all additional features based on feature combination
+    # Features are selected based on Spearman correlation with phishing labels
+    # Higher-ranked features (by absolute correlation) are prioritized
     additional_features = []
     
     # Add frequency features (6 dimensions)
@@ -292,7 +514,22 @@ def dirtemporalAggregation1(embd, G, v, alpha, freq_features=None, stat_features
         return temporal_features
 
 def dirtemporalAggregation(embd, G, alpha, freq_features=None, stat_features=None, graph_features=None):
-    """Aggregate temporal neighbor embeddings for all nodes with selected feature combinations."""
+    """
+    Aggregate temporal neighbor embeddings for all nodes with feature engineering.
+    
+    Applies dirtemporalAggregation1 to every node in the graph and stacks results.
+    
+    Args:
+        embd (numpy.ndarray): Current node embeddings (nv x d)
+        G (list): Graph structure
+        alpha (float): Temporal decay factor
+        freq_features (dict): Frequency-based features
+        stat_features (dict): Statistical features  
+        graph_features (dict): Centrality features
+    
+    Returns:
+        numpy.ndarray: Stacked feature matrix (nv x total_features)
+    """
     m = []
     nv = len(G)
     for v in range(nv):
@@ -300,7 +537,18 @@ def dirtemporalAggregation(embd, G, alpha, freq_features=None, stat_features=Non
     return np.vstack(m)
 
 def getnumber(emb):
-    """Calculate the number of unique embeddings."""
+    """
+    Calculate the number of unique embeddings (for convergence detection).
+    
+    Converts each embedding to a string and counts unique representations.
+    Used to detect when embeddings stop changing (convergence).
+    
+    Args:
+        emb (numpy.ndarray): Embedding matrix (nv x d)
+    
+    Returns:
+        int: Number of unique embeddings
+    """
     ss = set()
     for x in range(emb.shape[0]):
         sd = ','.join(str(emb[x, y]) for y in range(emb.shape[1]))
@@ -309,7 +557,33 @@ def getnumber(emb):
 
 def dirtemporalSirGN(G, n, alpha, iter=10, beta=10.0, kmeans_iter=10, lambda_weight=1.0, mu_weight=1.0, 
                      freq_loader=None, stat_loader=None):
-    """Run SIRGN with Laplacian optimization on assignments and selected feature combinations."""
+    """
+    Run SGDiT-SGCR algorithm with Laplacian optimization (fixed iterations).
+    
+    Main algorithm loop:
+    1. Initialize embeddings uniformly
+    2. Calculate additional features (frequency, statistical, centrality)
+    3. For each iteration:
+        a. Aggregate temporal neighbors with features
+        b. Apply differentiable K-means clustering
+        c. Optimize embeddings with Laplacian regularization
+        d. Re-aggregate with updated embeddings
+    
+    Args:
+        G (list): Graph structure
+        n (int): Number of clusters (embedding dimension)
+        alpha (float): Temporal decay factor
+        iter (int): Number of iterations to run
+        beta (float): K-means inverse temperature
+        kmeans_iter (int): K-means iterations
+        lambda_weight (float): Cluster Laplacian weight
+        mu_weight (float): Identity regularization weight
+        freq_loader: Loader for frequency features
+        stat_loader: Loader for statistical features
+    
+    Returns:
+        numpy.ndarray: Final node embeddings (nv x total_features)
+    """
     nv = len(G)
     embd = np.array([[1 / n for i in range(n)] for x in range(nv)])
     
@@ -360,7 +634,27 @@ def dirtemporalSirGN(G, n, alpha, iter=10, beta=10.0, kmeans_iter=10, lambda_wei
 
 def dirtemporalSirGNStop(G, n, alpha, iter=100, beta=10.0, kmeans_iter=10, lambda_weight=1.0, mu_weight=1.0,
                          freq_loader=None, stat_loader=None):
-    """Run SIRGN with early stopping and Laplacian optimization with selected feature combinations."""
+    """
+    Run SGDiT-SGCR algorithm with early stopping based on convergence.
+    
+    Similar to dirtemporalSirGN but stops early when embeddings converge.
+    Convergence is detected when the number of unique embeddings stops increasing.
+    
+    Args:
+        G (list): Graph structure
+        n (int): Number of clusters (embedding dimension)
+        alpha (float): Temporal decay factor
+        iter (int): Maximum number of iterations
+        beta (float): K-means inverse temperature
+        kmeans_iter (int): K-means iterations
+        lambda_weight (float): Cluster Laplacian weight
+        mu_weight (float): Identity regularization weight
+        freq_loader: Loader for frequency features
+        stat_loader: Loader for statistical features
+    
+    Returns:
+        numpy.ndarray: Final node embeddings (nv x total_features)
+    """
     nv = len(G)
     embd = np.array([[1 / n for i in range(n)] for x in range(nv)])
     
