@@ -1,8 +1,20 @@
 # 🛡️ Blockchain Fraud Detection: The Power of Data Preparation
 
 **Project Status**: ✅ Production-Ready 
-**Last Updated**: November 28, 2024  
+**Last Updated**: December 4, 2025  
 **Research Focus**: Ethereum Phishing Detection with Advanced Feature Engineering
+
+---
+
+## 👥 Team Members and Contributions
+
+| STT | Student ID | Full Name              | % Contribution |
+|-----|------------|------------------------|----------------|
+| 17  | 11230548   | Đinh Nam Khánh         | 110%           |
+| 26  | 11230570   | Phạm Hồng Minh         | 100%           |
+| 7   | 11230526   | Vũ Ngọc Dương          | 100%           |
+| 27  | 11230572   | Nghiêm Trà My          | 95%            |
+| 39  | 11230597   | Triệu Hải Đăng Trinh   | 95%            |
 
 ---
 
@@ -191,7 +203,7 @@ Data-Prep-Project-main/
 │   ├── 📓 02_explanatory_journey.ipynb           # Feature engineering journey
 │   ├── 📓 03_the_solution.ipynb                  # Transformation proof
 │   ├── 📓 04_call_to_action.ipynb                # Actionable takeaways
-│   ├── Data_story_telling.md                     # Storytelling documentation
+│   ├── 📄 Data_story_telling.md                     # Storytelling documentation
 │   └── save_image_story/                         # Generated visualizations
 │
 ├── 📂 streamlit_UI/
@@ -200,7 +212,7 @@ Data-Prep-Project-main/
 │   ├── data_utils.py                      # Data utilities (326 lines) 
 │   ├── ui_components.py                   # UI components (420 lines) 
 │   ├── requirements.txt                   # Python dependencies
-│   └── README_UI_streamlit.md             # Dashboard user guide 
+│   └── 📄 README_UI_streamlit.md             # Dashboard user guide 
 │
 └── 📄 README.md                           # This file
 ```
